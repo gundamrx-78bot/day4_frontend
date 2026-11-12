@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>전국 날씨 · 미세먼지 지도</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>전국 날씨 · 미세먼지</h1>
+    <form id="search-form">
+      <div class="search-box">
+        <input id="city-input" type="text" placeholder="지역 이름 (예: 서, 부산, Tokyo)" autocomplete="off" />
+        <ul id="suggestions" hidden></ul>
+      </div>
+      <button type="submit">검색</button>
+      <button type="button" id="geo-btn" title="내 위치">📍</button>
+    </form>
+  </header>
+
+  <div class="layout">
+    <section class="map-wrap">
+      <div class="modes" role="group" aria-label="지도 표시 항목">
+        <button data-mode="temp" class="on">기온</button>
+        <button data-mode="pm25">초미세먼지</button>
+        <button data-mode="pm10">미세먼지</button>
+        <button data-mode="sky">날씨</button>
+      </div>
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <aside class="card">
+      <p id="status" class="status" role="status"></p>
+      <section id="weather" hidden>
+        <h2 id="place"></h2>
+        <div class="main">
+          <span id="icon" class="icon"></span>
+          <span id="temp" class="temp"></span>
+        </div>
+        <p id="desc" class="desc"></p>
+
+        <h3>대기질</h3>
+        <div class="air">
+          <div class="air-tile"><span class="lbl">초미세먼지 PM2.5</span><b id="pm25"></b><span id="pm25-grade" class="grade"></span></div>
+          <div class="air-tile"><span class="lbl">미세먼지 PM10</span><b id="pm10"></b><span id="pm10-grade" class="grade"></span></div>
+        </div>
+
+        <h3>날씨</h3>
+        <dl class="details">
+          <div><dt>체감온도</dt><dd id="feels"></dd></div>
+          <div><dt>습도</dt><dd id="humidity"></dd></div>
+          <div><dt>풍속</dt><dd id="wind"></dd></div>
+          <div><dt>강수량</dt><dd id="precip"></dd></div>
+        </dl>
+        <p id="updated" class="updated"></p>
+      </section>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="cities.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

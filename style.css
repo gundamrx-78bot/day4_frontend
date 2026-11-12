@@ -1,0 +1,153 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Malgun Gothic", system-ui, sans-serif;
+  background: linear-gradient(160deg, #4facfe, #00c6fb);
+  color: #1b2a3a;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+}
+h1 { margin: 0; font-size: 1.3rem; color: #fff; }
+h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+h3 { margin: 18px 0 8px; font-size: 0.9rem; color: #556; }
+
+#search-form { display: flex; gap: 6px; width: min(100%, 380px); }
+.search-box { position: relative; flex: 1; }
+.search-box input { width: 100%; }
+#suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #c5d3e0;
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+#suggestions li { padding: 8px 12px; cursor: pointer; font-size: 0.95rem; }
+#suggestions li:hover, #suggestions li.active { background: #e3efff; }
+input {
+  padding: 10px 12px;
+  border: 1px solid #c5d3e0;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #1e73d8;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+button:hover { background: #155bb0; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  padding: 0 20px 20px;
+  height: calc(100vh - 72px);
+  min-height: 520px;
+}
+.map-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+#map { flex: 1; min-height: 0; }
+
+.modes {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  border-bottom: 1px solid #e3e9f0;
+}
+.modes button { padding: 6px 12px; font-size: 0.9rem; background: #e8eef6; color: #345; }
+.modes button.on { background: #1e73d8; color: #fff; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  background: #fff;
+  border-top: 1px solid #e3e9f0;
+}
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+.card {
+  padding: 22px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.status { min-height: 1.4em; margin: 0 0 8px; color: #666; font-size: 0.9rem; }
+.status.error { color: #c62828; }
+
+.main { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.icon { font-size: 3.2rem; line-height: 1; }
+.temp { font-size: 3rem; font-weight: 700; }
+.desc { margin: 4px 0 0; font-size: 1.05rem; color: #44566a; }
+
+.air { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.air-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: #eef4fb; border-radius: 10px; }
+.air-tile .lbl { font-size: 0.75rem; color: #667; }
+.air-tile b { font-size: 1.4rem; }
+.grade { align-self: flex-start; padding: 1px 8px; border-radius: 99px; font-size: 0.78rem; color: #fff; background: #999; }
+
+.details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
+.details div { padding: 10px 12px; background: #eef4fb; border-radius: 10px; }
+dt { font-size: 0.8rem; color: #667; }
+dd { margin: 2px 0 0; font-weight: 600; }
+
+.updated { margin: 14px 0 0; font-size: 0.8rem; color: #889; text-align: right; }
+
+/* 지도 마커 */
+.mk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  border: 2px solid #fff;
+  font: 700 11px/1 "Malgun Gothic", sans-serif;
+  color: #fff;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.mk.sky { background: #fff; color: #222; font-size: 15px; }
+.mk.sel { outline: 3px solid #111; z-index: 999 !important; }
+.leaflet-div-icon.mk-wrap { background: none; border: 0; }
+
+@media (max-width: 820px) {
+  .layout { grid-template-columns: 1fr; height: auto; }
+  .map-wrap { height: 60vh; }
+}
