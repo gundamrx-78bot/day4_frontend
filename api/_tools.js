@@ -9,9 +9,9 @@ const AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 // 공개 Overpass 서버는 자주 느려지므로 여러 미러를 순서대로 시도 (미러별 제한 시간)
 const OVERPASS_URLS = [
-  ["https://overpass.openstreetmap.fr/api/interpreter", 25000],
-  ["https://overpass-api.de/api/interpreter", 25000],
-  ["https://overpass.kumi.systems/api/interpreter", 25000],
+  ["https://overpass.openstreetmap.fr/api/interpreter", 15000],
+  ["https://overpass-api.de/api/interpreter", 15000],
+  ["https://overpass.kumi.systems/api/interpreter", 15000],
 ];
 const WIKI_URL = "https://ko.wikipedia.org/w/api.php";
 
@@ -232,6 +232,54 @@ async function wikiSpots(place, category, radius, n) {
     .slice(0, n);
 }
 
+// ---- 카카오 로컬 API (KAKAO_REST_API_KEY 가 있을 때 우선 사용, 한국 전용) ----
+// 카테고리 그룹 코드: AT4 관광명소, CE7 카페, FD6 음식점 / 그 외는 키워드 검색
+const KAKAO = {
+  attraction: { group: "AT4" },
+  cafe: { group: "CE7" },
+  restaurant: { group: "FD6" },
+  museum: { keywords: ["박물관", "미술관"] },
+  park: { keywords: ["공원", "수목원"] },
+  beach: { keywords: ["해수욕장"] },
+  viewpoint: { keywords: ["전망대"] },
+  mountain: { keywords: ["등산로"] },
+  shopping: { keywords: ["쇼핑몰", "전통시장"] },
+  theme_park: { keywords: ["테마파크", "워터파크"] },
+};
+
+async function kakaoSpots(place, category, radius, n) {
+  const key = process.env.KAKAO_REST_API_KEY;
+  const spec = KAKAO[category];
+  const r = Math.min(radius, 20000); // 카카오 최대 반경 20km
+  const base = { x: String(place.longitude), y: String(place.latitude), radius: String(r), size: String(Math.min(n * 2, 15)) };
+  const calls = spec.group
+    ? [["category", { ...base, category_group_code: spec.group, sort: "accuracy" }]]
+    : spec.keywords.map((k) => ["keyword", { ...base, query: k, sort: "accuracy" }]);
+
+  const pages = await Promise.all(
+    calls.map(([kind, params]) =>
+      getJson(`https://dapi.kakao.com/v2/local/search/${kind}.json?${new URLSearchParams(params)}`, {
+        headers: { Authorization: `KakaoAK ${key}`, "User-Agent": UA },
+        signal: AbortSignal.timeout(10000),
+      })
+    )
+  );
+  return pages
+    .flatMap((p) => p.documents || [])
+    .map((d) => ({
+      name: d.place_name,
+      category,
+      indoor: CATS[category].indoor,
+      latitude: +Number(d.y).toFixed(5),
+      longitude: +Number(d.x).toFixed(5),
+      distance_km: +(Number(d.distance) / 1000).toFixed(1),
+      address: d.road_address_name || d.address_name || undefined,
+      website: d.place_url || undefined,
+      kind: d.category_name ? d.category_name.split(" > ").slice(-2).join(" > ") : undefined,
+      _notable: true, // 카카오는 정확도순이므로 거리순 정렬만 적용
+    }));
+}
+
 async function find_spots({ city, category, radius_km, limit }) {
   const cat = CATS[category];
   if (!cat) throw new Error(`지원하지 않는 category: ${category}`);
@@ -242,7 +290,16 @@ async function find_spots({ city, category, radius_km, limit }) {
   const body = cat.sel.map((s) => `nwr${s}["name"](around:${radius},${place.latitude},${place.longitude});`).join("");
   let source = "OpenStreetMap";
   let raw;
-  try {
+  let kakaoErr;
+  if (process.env.KAKAO_REST_API_KEY) {
+    try {
+      raw = await kakaoSpots(place, category, radius, n);
+      source = "Kakao";
+    } catch (e) {
+      kakaoErr = e.message; // 카카오 실패 시 OpenStreetMap 으로 계속
+    }
+  }
+  if (!raw) try {
     const data = await overpass(`[out:json][timeout:20];(${body});out center 60;`);
     // 과부하 시 200 + 빈 결과 + remark 로 오는 경우를 오류로 취급
     if (data.remark && /error|timed out|out of memory/i.test(data.remark)) throw new Error(`장소 검색 서버 과부하: ${data.remark.slice(0, 80)}`);
@@ -283,6 +340,7 @@ async function find_spots({ city, category, radius_km, limit }) {
 
   const result = { center: place.name, category, source, count: spots.length, spots };
   if (spots.length === 0) result.note = "검색 결과가 없습니다. 반경을 넓히거나 다른 category로 시도해 보세요.";
+  if (kakaoErr) result.note = (result.note ? result.note + " " : "") + `카카오 검색 실패(${kakaoErr}).`;
   if (source === "Wikipedia") result.note = (result.note ? result.note + " " : "") + "주 검색 서버 장애로 위키백과 기반 결과입니다(일부 장소만 포함).";
   return { result, summary: `${place.name} 주변 ${category} ${spots.length}곳 (${source})`, spots, place };
 }

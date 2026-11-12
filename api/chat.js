@@ -2,7 +2,12 @@
 // Gemini function calling 으로 get_weather / find_spots 중 필요한 도구를 스스로 골라 호출하는 에이전트
 const { declarations, executeTool } = require("./_tools");
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// gemini-flash-latest: 항상 최신 flash 모델을 가리키는 별칭 (모델 단종에 영향받지 않음)
+// 과부하(429/5xx)나 시간 초과가 나면 다음 모델로 자동 전환
+// 실측(함수 호출 1회): thinkingLevel 기본값일 때 gemini-3.5-flash ~26초 → low 로 낮추면 ~2.7초
+const MODELS = [process.env.GEMINI_MODEL || "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"].filter((m, i, a) => a.indexOf(m) === i);
+// 생각 수준: minimal | low | medium | high (Gemini 3 계열만 지원). 빈 값이면 모델 기본값 사용
+const THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL === undefined ? "low" : process.env.GEMINI_THINKING_LEVEL.trim();
 const MAX_STEPS = 6; // 도구 호출 반복 상한
 
 const SYSTEM = `너는 한국 여행·나들이 장소를 추천하는 친절한 AI 에이전트다. 한국어로 답한다.
@@ -22,6 +27,31 @@ const SYSTEM = `너는 한국 여행·나들이 장소를 추천하는 친절한
 5. 답변은 간결하게: 날씨 한 줄 요약 → 추천 장소 3~5곳(이름, 거리, 한 줄 이유) → 필요하면 팁. 왜 그 종류를 골랐는지(날씨 근거)를 밝힌다.
 6. 도구 호출이 오류를 반환하면 솔직히 알리고 다른 방법을 제안한다.
 7. 여행·날씨와 무관한 요청은 정중히 범위를 안내한다.`;
+
+// 모델 목록을 순서대로 시도: 성공하거나 재시도 불가 오류(키/요청 오류)면 즉시 반환
+async function callGemini(key, body) {
+  let last;
+  for (const model of MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(
+          THINKING_LEVEL && /^gemini-3/.test(model)
+            ? { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: { thinkingLevel: THINKING_LEVEL } } }
+            : body
+        ),
+        signal: AbortSignal.timeout(25000),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok || !(r.status === 429 || r.status >= 500 || r.status === 404)) return { r, data };
+      last = { r, data };
+    } catch (e) {
+      last = { r: { ok: false, status: 504 }, data: { error: { message: `Gemini 응답 시간 초과 (${model})` } } };
+    }
+  }
+  return last;
+}
 
 function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
@@ -56,19 +86,13 @@ module.exports = async function handler(req, res) {
 
   try {
     for (let i = 0; i < MAX_STEPS; i++) {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM }] },
-          contents,
-          tools: [{ functionDeclarations: declarations }],
-          toolConfig: { functionCallingConfig: { mode: "AUTO" } },
-          generationConfig: { temperature: 0.4 },
-        }),
-        signal: AbortSignal.timeout(50000),
+      const { r, data } = await callGemini(key, {
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents,
+        tools: [{ functionDeclarations: declarations }],
+        toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+        generationConfig: { temperature: 0.4 },
       });
-      const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         const msg = data?.error?.message || `Gemini API 오류 (${r.status})`;
         return res.status(r.status === 429 ? 429 : 502).json({ error: msg, steps });
