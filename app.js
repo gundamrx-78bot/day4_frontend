@@ -229,9 +229,26 @@ function render(e) {
   $("weather").hidden = false;
 }
 
+// 좌표에서 가장 가까운 도시 이름 (지도를 눌렀을 때 위치 이름 표시용)
+function nearestCity(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const c of KR_CITIES) {
+    const d = (c.latitude - lat) ** 2 + ((c.longitude - lon) * Math.cos((lat * Math.PI) / 180)) ** 2;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best && Math.sqrt(bd) * 111 <= 60 ? best : null; // 약 60km 이내일 때만
+}
+
+// 채팅 탭에 "에이전트가 기준으로 삼을 위치" 표시
+function updateChatLoc() {
+  const p = selected?.place;
+  $("chat-loc").textContent = p ? `📍 기준 위치: ${p.name} — 질문의 "여기·근처"는 이 위치를 뜻해요` : "";
+}
+
 function select(e, fly = true) {
   const prev = selected;
   selected = e;
+  updateChatLoc();
   if (prev && prev.marker) prev.marker.setIcon(markerIcon(prev));
   if (e.marker) e.marker.setIcon(markerIcon(e));
   if (e.w) render(e);
@@ -254,6 +271,18 @@ async function showCustom(place) {
     setStatus(err.message || "날씨를 가져오지 못했습니다.", true);
   }
 }
+
+// 지도의 빈 곳을 누르면 그 지점을 선택 (마커 클릭은 이 이벤트로 오지 않음)
+map.on("click", (ev) => {
+  const { lat, lng } = ev.latlng;
+  const near = nearestCity(lat, lng);
+  showCustom({
+    name: near ? `선택한 지점 (${cityLabel(near)} 근처)` : "선택한 지점",
+    country: "대한민국",
+    latitude: +lat.toFixed(4),
+    longitude: +lng.toFixed(4),
+  });
+});
 
 function pickCity(c) {
   const e = entries.find((x) => x.city === c);
@@ -416,7 +445,13 @@ async function sendChat(text) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: chatHistory }),
+      body: JSON.stringify({
+        messages: chatHistory,
+        // 지도에서 선택한 위치를 에이전트에게 알려 "여기 근처" 같은 질문에 쓰게 함
+        location: selected?.place
+          ? { name: selected.place.name, latitude: selected.place.latitude, longitude: selected.place.longitude }
+          : undefined,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     typing.remove();

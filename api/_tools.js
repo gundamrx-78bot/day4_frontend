@@ -32,9 +32,11 @@ const declarations = [
     parameters: {
       type: "object",
       properties: {
-        city: { type: "string", description: "도시/지역 이름. 한글(예: 서울, 제주, 강릉) 또는 영문(예: Busan)." },
+        city: { type: "string", description: "도시/지역 이름. 한글(예: 서울, 제주, 강릉) 또는 영문(예: Busan). 사용자가 지도에서 고른 위치를 쓸 때는 생략하고 latitude/longitude를 준다." },
+        latitude: { type: "number", description: "위도. 사용자가 지도에서 선택한 위치(여기·내 주변)를 기준으로 할 때 longitude와 함께 전달." },
+        longitude: { type: "number", description: "경도." },
       },
-      required: ["city"],
+      required: [],
     },
   },
   {
@@ -44,7 +46,9 @@ const declarations = [
     parameters: {
       type: "object",
       properties: {
-        city: { type: "string", description: "검색 중심이 되는 도시/지역 이름 (한글 또는 영문)." },
+        city: { type: "string", description: "검색 중심이 되는 도시/지역 이름 (한글 또는 영문). 사용자가 지도에서 고른 위치를 쓸 때는 생략하고 latitude/longitude를 준다." },
+        latitude: { type: "number", description: "검색 중심 위도 (지도에서 선택한 위치 기준일 때 longitude와 함께)." },
+        longitude: { type: "number", description: "검색 중심 경도." },
         category: {
           type: "string",
           enum: ["attraction", "museum", "park", "cafe", "restaurant", "beach", "viewpoint", "mountain", "shopping", "theme_park"],
@@ -54,7 +58,7 @@ const declarations = [
         radius_km: { type: "number", description: "검색 반경(km). 기본 10, 최대 30." },
         limit: { type: "integer", description: "가져올 개수. 기본 8, 최대 15." },
       },
-      required: ["city", "category"],
+      required: ["category"],
     },
   },
 ];
@@ -82,9 +86,14 @@ async function getJson(url, init) {
   return res.json();
 }
 
-async function resolvePlace(city) {
+async function resolvePlace(city, latitude, longitude) {
+  // 좌표가 오면(지도에서 선택한 위치) 그대로 사용
+  const lat = Number(latitude), lon = Number(longitude);
+  if (latitude != null && longitude != null && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    return { name: String(city || "선택한 위치"), latitude: lat, longitude: lon, country: "" };
+  }
   const q = String(city || "").trim();
-  if (!q) throw new Error("city 값이 비어 있습니다.");
+  if (!q) throw new Error("city 또는 latitude/longitude 가 필요합니다.");
   const hit = krCities().find((c) => c.ko === stripSuffix(q) || c.en.toLowerCase() === q.toLowerCase());
   if (hit) {
     const label = hit.region === hit.ko ? hit.ko : `${hit.ko}(${hit.region})`;
@@ -104,8 +113,8 @@ function grade(v, cuts) {
   return ["좋음", "보통", "나쁨", "매우나쁨"][i === -1 ? 3 : i];
 }
 
-async function get_weather({ city }) {
-  const place = await resolvePlace(city);
+async function get_weather({ city, latitude, longitude }) {
+  const place = await resolvePlace(city, latitude, longitude);
   const wp = new URLSearchParams({
     latitude: place.latitude,
     longitude: place.longitude,
@@ -280,10 +289,10 @@ async function kakaoSpots(place, category, radius, n) {
     }));
 }
 
-async function find_spots({ city, category, radius_km, limit }) {
+async function find_spots({ city, latitude, longitude, category, radius_km, limit }) {
   const cat = CATS[category];
   if (!cat) throw new Error(`지원하지 않는 category: ${category}`);
-  const place = await resolvePlace(city);
+  const place = await resolvePlace(city, latitude, longitude);
   const radius = Math.min(Math.max(Number(radius_km) || 10, 1), 30) * 1000;
   const n = Math.min(Math.max(parseInt(limit) || 8, 1), 15);
 

@@ -69,7 +69,16 @@ module.exports = async function handler(req, res) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return res.status(500).json({ error: "서버에 GEMINI_API_KEY 환경변수가 설정되지 않았습니다." });
 
-  const { messages } = readBody(req);
+  const { messages, location } = readBody(req);
+  // 지도에서 사용자가 선택한 위치 → 시스템 프롬프트에 덧붙여 "여기/근처" 질문의 기준으로 사용
+  let system = SYSTEM;
+  let loc = null;
+  const lat = Number(location?.latitude), lon = Number(location?.longitude);
+  if (location && Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    const name = String(location.name || "선택한 위치").replace(/[\r\n]/g, " ").slice(0, 60);
+    loc = { name, latitude: lat, longitude: lon };
+    system += `\n\n[사용자가 지도에서 선택한 위치] ${name}\n- 질문에 "여기", "근처", "내 주변"처럼 지역이 명시되지 않으면 이 위치가 기준이다. 이때 get_weather/find_spots의 city, latitude, longitude는 모두 생략한다(서버가 선택한 위치의 좌표를 채운다).\n- 질문에 다른 지역이 명시되면 그 지역을 city로 지정한다.\n- 장소 추천 질문이면 먼저 get_weather를 호출하고, 그 결과를 본 뒤 find_spots를 호출한다.`;
+  }
   if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: "messages 가 필요합니다." });
 
   const contents = messages
@@ -87,7 +96,7 @@ module.exports = async function handler(req, res) {
   try {
     for (let i = 0; i < MAX_STEPS; i++) {
       const { r, data } = await callGemini(key, {
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: system }] },
         contents,
         tools: [{ functionDeclarations: declarations }],
         toolConfig: { functionCallingConfig: { mode: "AUTO" } },
@@ -116,7 +125,10 @@ module.exports = async function handler(req, res) {
       contents.push({ role: "model", parts });
       const responses = await Promise.all(
         calls.map(async (p) => {
-          const { name, args } = p.functionCall;
+          const { name } = p.functionCall;
+          let args = p.functionCall.args || {};
+          // 지역을 지정하지 않은 호출은 선택한 위치 좌표로 채움 (모델이 좌표를 잘못 옮기는 것 방지)
+          if (loc && !args.city) args = { ...args, latitude: loc.latitude, longitude: loc.longitude, city: loc.name };
           const out = await executeTool(name, args);
           steps.push({ name, args: args || {}, ok: out.ok, summary: out.summary });
           if (out.spots) spots.push(...out.spots.map((s) => ({ ...s })));

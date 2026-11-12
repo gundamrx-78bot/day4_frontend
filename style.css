@@ -169,6 +169,8 @@ dd { margin: 2px 0 0; font-weight: 600; }
 .msg.typing { color: #778; font-style: italic; }
 .tool { align-self: flex-start; max-width: 96%; padding: 5px 9px; border-radius: 8px; font: 0.75rem/1.4 Consolas, monospace; background: #fff7e0; border: 1px solid #f0d98a; color: #6b5300; }
 .tool.fail { background: #fdecea; border-color: #f2b8b5; color: #b3261e; }
+.chat-loc { font-size: 12px; color: #2563eb; background: #eef4ff; border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+.chat-loc:empty { display: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { padding: 5px 10px; font-size: 0.78rem; background: #fff; color: #1e73d8; border: 1px solid #b9d3f3; border-radius: 99px; }
 .chip:hover { background: #e3efff; }
