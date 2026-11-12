@@ -100,6 +100,9 @@ button:hover { background: #155bb0; }
 .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 
 .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 22px;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.94);
@@ -151,3 +154,25 @@ dd { margin: 2px 0 0; font-weight: 600; }
   .layout { grid-template-columns: 1fr; height: auto; }
   .map-wrap { height: 60vh; }
 }
+
+/* 탭 + AI 채팅 */
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 8px; font-size: 0.9rem; background: #e8eef6; color: #345; }
+.tabs button.on { background: #1e73d8; color: #fff; }
+#tab-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+#tab-chat[hidden] { display: none; }
+#chat-log { flex: 1; min-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px; }
+.msg { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: 0.9rem; line-height: 1.45; word-break: break-word; }
+.msg.user { align-self: flex-end; background: #1e73d8; color: #fff; border-bottom-right-radius: 3px; }
+.msg.bot { align-self: flex-start; background: #eef4fb; border-bottom-left-radius: 3px; }
+.msg.err { align-self: flex-start; background: #fdecea; color: #b3261e; }
+.msg.typing { color: #778; font-style: italic; }
+.tool { align-self: flex-start; max-width: 96%; padding: 5px 9px; border-radius: 8px; font: 0.75rem/1.4 Consolas, monospace; background: #fff7e0; border: 1px solid #f0d98a; color: #6b5300; }
+.tool.fail { background: #fdecea; border-color: #f2b8b5; color: #b3261e; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 5px 10px; font-size: 0.78rem; background: #fff; color: #1e73d8; border: 1px solid #b9d3f3; border-radius: 99px; }
+.chip:hover { background: #e3efff; }
+#chat-form { display: flex; gap: 6px; }
+#chat-form input { flex: 1; min-width: 0; }
+.spot-pin { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.leaflet-div-icon.spot-wrap { background: none; border: 0; }

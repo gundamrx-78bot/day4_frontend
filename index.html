@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>전국 날씨 · 미세먼지 지도</title>
+  <title>전국 날씨 · 미세먼지 지도 + AI 추천</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -33,7 +33,12 @@
     </section>
 
     <aside class="card">
+      <div class="tabs" role="tablist">
+        <button data-tab="info" class="on">날씨 상세</button>
+        <button data-tab="chat">🤖 AI 추천</button>
+      </div>
       <p id="status" class="status" role="status"></p>
+      <div id="tab-info">
       <section id="weather" hidden>
         <h2 id="place"></h2>
         <div class="main">
@@ -57,6 +62,22 @@
         </dl>
         <p id="updated" class="updated"></p>
       </section>
+      </div>
+
+      <div id="tab-chat" hidden>
+        <div id="chat-log" aria-live="polite">
+          <div class="msg bot">안녕하세요! 날씨와 미세먼지를 확인하고 어울리는 장소를 추천해 드려요. 어디서 무엇을 하고 싶으신가요?</div>
+        </div>
+        <div class="chips">
+          <button type="button" class="chip">오늘 서울 날씨 어때?</button>
+          <button type="button" class="chip">이번 주말 강릉에서 갈 만한 곳 추천해줘</button>
+          <button type="button" class="chip">부산 카페 추천해줘</button>
+        </div>
+        <form id="chat-form">
+          <input id="chat-input" type="text" placeholder="예: 비 오는 날 제주에서 갈 만한 곳" autocomplete="off" />
+          <button type="submit" id="chat-send">전송</button>
+        </form>
+      </div>
     </aside>
   </div>
 

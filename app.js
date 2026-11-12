@@ -108,7 +108,9 @@ async function fetchAll(baseUrl, vars, places) {
 async function loadData(places) {
   const [w, a] = await Promise.all([
     fetchAll(FORECAST_URL, WEATHER_VARS, places),
-    fetchAll(AIR_URL, AIR_VARS, places).catch(() => places.map(() => null)),
+    fetchAll(AIR_URL, AIR_VARS, places)
+      .catch(() => new Promise((r) => setTimeout(r, 3000)).then(() => fetchAll(AIR_URL, AIR_VARS, places)))
+      .catch(() => places.map(() => null)),
   ]);
   return places.map((place, i) => ({ place, w: w[i], a: a[i] }));
 }
@@ -119,7 +121,10 @@ async function loadCities() {
     if (cached && Date.now() - cached.t < CACHE_MS && cached.data.length === KR_CITIES.length) return cached.data;
   } catch {}
   const data = await loadData(KR_CITIES.map(toPlace));
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), data })); } catch {}
+  // 대기질/날씨가 빠진 불완전한 결과는 캐시하지 않음
+  if (data.every((e) => e.w && e.a)) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), data })); } catch {}
+  }
   return data;
 }
 
@@ -346,3 +351,100 @@ $("geo-btn").addEventListener("click", () => {
     setStatus(err.message || "데이터를 가져오지 못했습니다.", true);
   }
 })();
+
+// ---- 탭 전환 ----
+document.querySelectorAll(".tabs button").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    $("tab-info").hidden = b.dataset.tab !== "info";
+    $("tab-chat").hidden = b.dataset.tab !== "chat";
+  })
+);
+
+// ---- AI 에이전트 채팅 (POST /api/chat → Gemini function calling) ----
+const chatLog = $("chat-log");
+const chatInput = $("chat-input");
+const chatHistory = [];
+const spotLayer = L.layerGroup().addTo(map);
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+// 아주 작은 마크다운: **굵게**, 줄바꿈, "- "/"* " 목록
+const fmt = (t) =>
+  esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/^[-*] /gm, "• ")
+    .replace(/\n/g, "<br>");
+
+function addMsg(cls, html) {
+  const el = document.createElement("div");
+  el.className = `msg ${cls}`;
+  el.innerHTML = html;
+  chatLog.append(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+function addToolStep(s) {
+  const el = document.createElement("div");
+  el.className = `tool${s.ok ? "" : " fail"}`;
+  const args = Object.entries(s.args || {}).map(([k, v]) => `${k}: ${v}`).join(", ");
+  el.textContent = `🔧 ${s.name}(${args}) → ${s.summary}`;
+  chatLog.append(el);
+}
+
+function drawSpots(spots = [], places = []) {
+  spotLayer.clearLayers();
+  const pts = [];
+  for (const s of spots) {
+    const m = L.marker([s.latitude, s.longitude], {
+      icon: L.divIcon({ className: "spot-wrap", html: '<div class="spot-pin">📍</div>', iconSize: [22, 22], iconAnchor: [11, 22] }),
+    }).bindPopup(`<b>${esc(s.name)}</b><br>${s.distance_km}km${s.indoor ? " · 실내" : ""}${s.address ? "<br>" + esc(s.address) : ""}`);
+    spotLayer.addLayer(m);
+    pts.push([s.latitude, s.longitude]);
+  }
+  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 12 });
+  else if (places[0]) map.flyTo([places[0].latitude, places[0].longitude], Math.max(map.getZoom(), 9), { duration: 0.8 });
+}
+
+async function sendChat(text) {
+  addMsg("user", esc(text));
+  chatHistory.push({ role: "user", text });
+  const form = $("chat-form");
+  form.querySelectorAll("input,button").forEach((x) => (x.disabled = true));
+  const typing = addMsg("bot typing", "생각하는 중... (날씨·장소 도구를 호출할 수 있어요)");
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: chatHistory }),
+    });
+    const data = await res.json().catch(() => ({}));
+    typing.remove();
+    (data.steps || []).forEach(addToolStep);
+    if (!res.ok) {
+      addMsg("err", esc(data.error || `요청 실패 (${res.status})`));
+      chatHistory.pop();
+    } else {
+      addMsg("bot", fmt(data.reply));
+      chatHistory.push({ role: "model", text: data.reply });
+      drawSpots(data.spots, data.places);
+    }
+  } catch (err) {
+    typing.remove();
+    addMsg("err", `네트워크 오류: ${esc(err.message)}`);
+    chatHistory.pop();
+  } finally {
+    form.querySelectorAll("input,button").forEach((x) => (x.disabled = false));
+    chatInput.focus();
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+}
+
+$("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = chatInput.value.trim();
+  if (!t) return;
+  chatInput.value = "";
+  sendChat(t);
+});
+document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => sendChat(c.textContent)));
